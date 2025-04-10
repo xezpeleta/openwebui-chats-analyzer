@@ -61,13 +61,66 @@
             font-size: 0.85rem;
             margin-bottom: 5px;
         }
+        .file-upload-container {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 2px dashed #dee2e6;
+            text-align: center;
+            cursor: pointer;
+        }
+        .file-upload-container:hover {
+            background-color: #e9ecef;
+        }
+        .file-info {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <h1 class="mb-4">OpenWebUI Chat Analyzer</h1>
         
-        <div id="loading" class="loading">
+        <div id="file-upload-section" class="card mb-4">
+            <div class="card-header">
+                <h5>Upload Chat Data</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <label for="json-file" class="file-upload-container" id="upload-area">
+                            <div>
+                                <i class="bi bi-upload fs-3"></i>
+                                <h5>Drag & drop your JSON file here or click to browse</h5>
+                                <p class="text-muted">Upload your OpenWebUI chats export file</p>
+                            </div>
+                            <input type="file" id="json-file" accept=".json" style="display: none;">
+                        </label>
+                        <div id="file-info" class="file-info text-muted"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="alert alert-info">
+                            <h5>How to get your chat data</h5>
+                            <ol>
+                                <li>Open your OpenWebUI instance</li>
+                                <li>Go to "Admin Panel" > "Settings" tab</li>
+                                <li>Select "Export all chats"</li>
+                                <li>Upload the downloaded file here</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button id="analyze-default-file" class="btn btn-outline-secondary">Use Sample Data (all-chats.json)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
@@ -299,6 +352,8 @@
         const PAGE_SIZE = 10;
         let currentPage = 0;
         let messageModal;
+        let fileUploaded = false;
+        let fileName = '';
 
         // Chart instances to allow destruction before recreating
         let modelChart = null;
@@ -308,40 +363,156 @@
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                // Load chat data
-                const response = await fetch('all-chats.json');
-                if (!response.ok) {
-                    throw new Error('Failed to load chat data');
-                }
-                
-                chatData = await response.json();
-                console.log(`Loaded ${chatData.length} chats`);
-                
-                // Hide loading indicator and show main content
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('main-content').style.display = 'block';
-                
-                // Process the data
-                processData(chatData);
-                
-                // Setup event listeners
-                setupEventListeners();
-                
-                // Initialize modal
-                messageModal = new bootstrap.Modal(document.getElementById('message-modal'));
-                
-            } catch (error) {
-                console.error('Error loading or processing data:', error);
-                document.getElementById('loading').innerHTML = `
-                    <div class="alert alert-danger">
-                        <h4>Error Loading Data</h4>
-                        <p>${error.message}</p>
-                        <p>Make sure your JSON file is valid and accessible.</p>
-                    </div>
-                `;
-            }
+            setupFileUpload();
+            setupDefaultFileButton();
+            
+            // Initialize modal
+            messageModal = new bootstrap.Modal(document.getElementById('message-modal'));
         });
+
+        // Setup file upload functionality
+        function setupFileUpload() {
+            const fileInput = document.getElementById('json-file');
+            const uploadArea = document.getElementById('upload-area');
+            const fileInfo = document.getElementById('file-info');
+            
+            // Handle file selection
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    handleFileUpload(file);
+                }
+            });
+            
+            // Handle drag and drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('bg-light');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('bg-light');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('bg-light');
+                
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'application/json') {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileUpload(file);
+                } else {
+                    fileInfo.innerHTML = '<div class="alert alert-danger">Please upload a JSON file</div>';
+                }
+            });
+        }
+        
+        // Setup button to use the default all-chats.json file
+        function setupDefaultFileButton() {
+            const analyzeDefaultButton = document.getElementById('analyze-default-file');
+            
+            analyzeDefaultButton.addEventListener('click', async () => {
+                document.getElementById('file-upload-section').style.display = 'none';
+                document.getElementById('loading').style.display = 'block';
+                
+                try {
+                    // Load default chat data
+                    await loadDefaultChatData();
+                } catch (error) {
+                    handleDataLoadError(error);
+                }
+            });
+        }
+        
+        // Handle file upload and processing
+        function handleFileUpload(file) {
+            const fileInfo = document.getElementById('file-info');
+            
+            // Display file info
+            fileName = file.name;
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileInfo.innerHTML = `<div class="alert alert-success">
+                <strong>${fileName}</strong> (${fileSizeMB} MB) selected
+                <button id="process-file" class="btn btn-primary btn-sm ms-3">Analyze This File</button>
+            </div>`;
+            
+            // Add event listener to the process button
+            document.getElementById('process-file').addEventListener('click', () => {
+                document.getElementById('file-upload-section').style.display = 'none';
+                document.getElementById('loading').style.display = 'block';
+                
+                const reader = new FileReader();
+                
+                reader.onload = async (e) => {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+                        chatData = jsonData;
+                        fileUploaded = true;
+                        
+                        console.log(`Loaded ${chatData.length} chats from uploaded file`);
+                        
+                        // Hide loading indicator and show main content
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('main-content').style.display = 'block';
+                        
+                        // Process the data
+                        processData(chatData);
+                        
+                        // Setup event listeners
+                        setupEventListeners();
+                        
+                    } catch (error) {
+                        handleDataLoadError(error);
+                    }
+                };
+                
+                reader.onerror = () => {
+                    handleDataLoadError(new Error('Error reading the file'));
+                };
+                
+                reader.readAsText(file);
+            });
+        }
+        
+        // Load the default all-chats.json file
+        async function loadDefaultChatData() {
+            const response = await fetch('all-chats.json');
+            if (!response.ok) {
+                throw new Error('Failed to load default chat data');
+            }
+            
+            chatData = await response.json();
+            console.log(`Loaded ${chatData.length} chats from default file`);
+            
+            // Hide loading indicator and show main content
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            
+            // Process the data
+            processData(chatData);
+            
+            // Setup event listeners
+            setupEventListeners();
+        }
+        
+        // Handle data loading errors
+        function handleDataLoadError(error) {
+            console.error('Error loading or processing data:', error);
+            document.getElementById('loading').innerHTML = `
+                <div class="alert alert-danger">
+                    <h4>Error Loading Data</h4>
+                    <p>${error.message}</p>
+                    <p>Make sure your JSON file is valid and has the correct structure.</p>
+                    <button id="back-to-upload" class="btn btn-primary mt-3">Back to Upload</button>
+                </div>
+            `;
+            
+            document.getElementById('back-to-upload').addEventListener('click', () => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('file-upload-section').style.display = 'block';
+            });
+        }
 
         // Process and display the data
         function processData(data) {
