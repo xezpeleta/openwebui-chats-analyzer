@@ -300,6 +300,12 @@
         let currentPage = 0;
         let messageModal;
 
+        // Chart instances to allow destruction before recreating
+        let modelChart = null;
+        let timeChart = null;
+        let messageChart = null;
+        let sourcesChart = null;
+
         // Initialize the application
         document.addEventListener('DOMContentLoaded', async () => {
             try {
@@ -386,6 +392,9 @@
 
         // Generate charts
         function generateCharts(data) {
+            // Destroy existing charts before creating new ones
+            destroyCharts();
+            
             // Model usage chart
             generateModelChart(data);
             
@@ -397,6 +406,29 @@
             
             // Sources chart
             generateSourcesChart(data);
+        }
+
+        // Destroy all existing charts to prevent errors when regenerating
+        function destroyCharts() {
+            if (modelChart) {
+                modelChart.destroy();
+                modelChart = null;
+            }
+            
+            if (timeChart) {
+                timeChart.destroy();
+                timeChart = null;
+            }
+            
+            if (messageChart) {
+                messageChart.destroy();
+                messageChart = null;
+            }
+            
+            if (sourcesChart) {
+                sourcesChart.destroy();
+                sourcesChart = null;
+            }
         }
 
         // Generate model usage chart
@@ -412,7 +444,7 @@
             });
             
             const ctx = document.getElementById('model-chart').getContext('2d');
-            new Chart(ctx, {
+            modelChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: Object.keys(modelCounts),
@@ -452,7 +484,7 @@
             const sortedMonths = Object.keys(chatsByMonth).sort();
             
             const ctx = document.getElementById('time-chart').getContext('2d');
-            new Chart(ctx, {
+            timeChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: sortedMonths,
@@ -505,7 +537,7 @@
             });
             
             const ctx = document.getElementById('message-chart').getContext('2d');
-            new Chart(ctx, {
+            messageChart = new Chart(ctx, {
                 type: 'pie',
                 data: {
                     labels: ['User Messages', 'Assistant Messages'],
@@ -565,7 +597,7 @@
             
             // Display chart for source types
             const ctx = document.getElementById('sources-chart').getContext('2d');
-            new Chart(ctx, {
+            sourcesChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(sourceTypes),
@@ -589,6 +621,7 @@
             
             // Display top sources
             const topSourcesList = document.getElementById('top-sources-list');
+            topSourcesList.innerHTML = ''; // Clear existing content
             
             // Sort sources by count
             const sortedSources = Object.entries(sourcesById)
