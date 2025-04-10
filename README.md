@@ -135,6 +135,3 @@ Key elements in each chat:
 - Sources: Referenced documents or knowledge sources (when available)
 - Model information: Which AI models were used in the conversation
 - Status information: Creation time, update time, tags, etc.
-
-## Screenshots
-
