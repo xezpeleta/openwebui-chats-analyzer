@@ -27,6 +27,18 @@ This will download a file named `all-chats-export-<id>.json` to your computer.
 - Search functionality to find specific chats
 - File upload to analyze your own JSON data
 
+## Screenshots
+
+![Upload your JSON file](public/assets/image.png)
+
+![Dashboard 1](public/assets/image-1.png)
+
+![Dashboard 2](public/assets/image-2.png)
+
+![Messages](public/assets/image-3.png)
+
+
+
 ## JSON File Structure
 
 Each chat in the OpenWebUI export JSON file follows this structure:
